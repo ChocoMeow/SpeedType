@@ -386,12 +386,63 @@ const TypingTest: React.FC<TypingTestProps> = ({
     const calculatedWpm = Math.round(wordsTyped / durationInMinutes);
     setWpm(calculatedWpm);
     
-    // Calculate accuracy
-    const calculatedAccuracy = totalTypedChars > 0 
-      ? Math.round(((totalTypedChars - errorCount) / totalTypedChars) * 100) 
-      : 100;
-    setAccuracy(calculatedAccuracy);
-  }, [status, endTime, startTime, currentWordIndex, totalTypedChars, errorCount]);
+    // Calculate accuracy using word attempts for a more precise measurement
+    // This focuses on the final state of each word, crediting users for corrections
+    if (wordAttempts.length > 0) {
+      let correctChars = 0;
+      let totalChars = 0;
+      
+      // Go through each word attempt - only counting the final state
+      wordAttempts.forEach(attempt => {
+        const expectedLength = attempt.expected.length;
+        const typedLength = attempt.typed.length;
+        
+        // Add expected characters to total
+        totalChars += expectedLength;
+        
+        // For each position, check if final character matches expected
+        for (let i = 0; i < Math.min(expectedLength, typedLength); i++) {
+          if (attempt.typed[i] === attempt.expected[i]) {
+            correctChars++;
+          }
+        }
+        
+        // Count extra characters as errors
+        if (typedLength > expectedLength) {
+          totalChars += (typedLength - expectedLength);
+        }
+      });
+      
+      // If current word is partially typed but not submitted, include it in the calculation
+      if (input.length > 0 && currentWordIndex < wordList.length) {
+        const currentWord = wordList[currentWordIndex];
+        totalChars += currentWord.length;
+        
+        for (let i = 0; i < Math.min(input.length, currentWord.length); i++) {
+          if (input[i] === currentWord[i]) {
+            correctChars++;
+          }
+        }
+        
+        if (input.length > currentWord.length) {
+          totalChars += (input.length - currentWord.length);
+        }
+      }
+      
+      // Calculate final accuracy percentage
+      const calculatedAccuracy = totalChars > 0 
+        ? Math.round((correctChars / totalChars) * 100)
+        : 100;
+      
+      setAccuracy(calculatedAccuracy);
+    } else {
+      // Fallback to the original calculation if no word attempts are recorded
+      const calculatedAccuracy = totalTypedChars > 0 
+        ? Math.round(((totalTypedChars - errorCount) / totalTypedChars) * 100) 
+        : 100;
+      setAccuracy(calculatedAccuracy);
+    }
+  }, [status, endTime, startTime, currentWordIndex, totalTypedChars, errorCount, wordAttempts, input, wordList]);
 
   const resetTest = () => {
     const selectedText = getTextSample();

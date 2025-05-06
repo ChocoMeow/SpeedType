@@ -83,7 +83,7 @@ const Practice = () => {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[calc(95vh-180px)]">
-      <div className="w-[80%] mx-auto px-4">
+      <div className="w-[100%] mx-auto px-4">
         {/* Options container with fade transition */}
         <div 
           className={`flex flex-wrap justify-center gap-6 md:gap-8 mb-10 transition-opacity duration-300 ${
