@@ -188,9 +188,6 @@ const Settings = () => {
   // Status for saving settings
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   
-  // Preview theme toggle
-  const [previewingTheme, setPreviewingTheme] = useState(false);
-  
   // File input reference
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -281,7 +278,6 @@ const Settings = () => {
   // Reset to saved settings
   const handleReset = () => {
     setFormValues({ ...settings });
-    setPreviewingTheme(false);
   };
   
   // Reset to defaults
@@ -338,12 +334,10 @@ const Settings = () => {
   // Render tab button
   const TabButton = ({ 
     id, 
-    current, 
     icon, 
     label 
   }: { 
     id: 'appearance' | 'behavior' | 'typing' | 'advanced', 
-    current: string, 
     icon: React.ReactNode, 
     label: string 
   }) => (
@@ -369,18 +363,6 @@ const Settings = () => {
       </div>
     </div>
   );
-  
-  // Trigger checkbox change
-  const handleToggle = (id: string) => {
-    const checkbox = document.getElementById(id) as HTMLInputElement;
-    if (checkbox) {
-      checkbox.checked = !checkbox.checked;
-      
-      // Create and dispatch a synthetic change event
-      const event = new Event('change', { bubbles: true });
-      checkbox.dispatchEvent(event);
-    }
-  };
   
   // Toggle switch component using standard approach
   const ToggleSwitch = ({ 
@@ -618,25 +600,21 @@ const Settings = () => {
         <div className="flex overflow-x-auto bg-[#0A0A0A] border-b border-[#1A1A1A]">
           <TabButton 
             id="appearance" 
-            current={activeTab} 
             icon={<LightBulbIcon className="h-5 w-5" />}
             label="Appearance" 
           />
           <TabButton 
             id="behavior" 
-            current={activeTab} 
             icon={<BellIcon className="h-5 w-5" />} 
             label="Behavior" 
           />
           <TabButton 
             id="typing" 
-            current={activeTab} 
             icon={<KeyIcon className="h-5 w-5" />} 
             label="Typing Test" 
           />
           <TabButton 
             id="advanced" 
-            current={activeTab} 
             icon={<CogIcon className="h-5 w-5" />} 
             label="Advanced" 
           />

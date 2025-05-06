@@ -67,7 +67,6 @@ const TypingTest: React.FC<TypingTestProps> = ({
   onNextTest,
   onTypingStateChange
 }) => {
-  const [text, setText] = useState('');
   const [wordList, setWordList] = useState<string[]>([]);
   const [input, setInput] = useState('');
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
@@ -164,7 +163,6 @@ const TypingTest: React.FC<TypingTestProps> = ({
   // Initialize with text based on selected mode
   useEffect(() => {
     const selectedText = getTextSample();
-    setText(selectedText);
     setWordList(selectedText.split(' '));
     setWordsLeft(selectedText.split(' ').length);
     wordElementsRef.current = wordElementsRef.current.slice(0, selectedText.split(' ').length);
@@ -397,7 +395,6 @@ const TypingTest: React.FC<TypingTestProps> = ({
 
   const resetTest = () => {
     const selectedText = getTextSample();
-    setText(selectedText);
     setWordList(selectedText.split(' '));
     setInput('');
     setCurrentWordIndex(0);

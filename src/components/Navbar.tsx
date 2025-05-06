@@ -23,15 +23,8 @@ const Navbar = () => {
   }, [isMenuOpen]);
 
   // Get current page title
-  const getPageTitle = () => {
-    const path = location.pathname;
-    if (path === '/') return 'Practice';
-    if (path === '/leaderboard') return 'Leaderboard';
-    if (path === '/settings') return 'Settings';
-    if (path === '/auth') return 'Login/Register';
-    return 'SpeedType';
-  };
-
+  // This function is now directly used in App.tsx with PageWrapper component
+  
   return (
     <nav className="bg-[#0A0A0A] p-4 text-gray-200 border-b border-[#1A1A1A]">
       <div className="container mx-auto flex justify-between items-center">
