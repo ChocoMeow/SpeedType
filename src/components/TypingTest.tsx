@@ -1,11 +1,52 @@
 import React, { useState, useEffect, useRef } from 'react';
 import TestResults from './TestResults';
 import { ArrowPathIcon } from '@heroicons/react/24/solid';
+import { generate } from "random-words";
 
 // Define test modes
 type TestMode = 'time' | 'words' | 'quote';
 
-// Text collections for different modes
+// Function to generate words with specific difficulty
+function generateWords(wordCount: number, minLength: number, maxLength: number): string[] {
+  const result = generate({ exactly: wordCount, minLength, maxLength });
+  return Array.isArray(result) ? result : [result];
+}
+
+// Generate paragraphs based on difficulty
+function generateSamplesByDifficulty(difficulty: 'easy' | 'medium' | 'hard'): string[] {
+  const samples: string[] = [];
+  
+  // Generate 5 samples for each difficulty
+  for (let i = 0; i < 5; i++) {
+    let words: string[] = [];
+    
+    switch (difficulty) {
+      case 'easy':
+        // Easy: shorter words (1-4 characters)
+        words = generateWords(150, 1, 4);
+        break;
+      case 'medium':
+        // Medium: mix of short and medium words (3-8 characters)
+        words = generateWords(150, 1, 8);
+        break;
+      case 'hard':
+        // Hard: longer words (5-14 characters) with some special characters
+        words =generateWords(150, 1, 14);
+        break;
+    }
+    
+    // Shuffle the words
+    const shuffled = words.sort(() => 0.5 - Math.random());
+    
+    // Take a subset to create a reasonable paragraph
+    const sampleWords = shuffled.slice(0, 60);
+    samples.push(sampleWords.join(' '));
+  }
+  
+  return samples;
+}
+
+// Static samples (as fallback)
 const simpleWords = [
   "the quick brown fox jumps over the lazy dog this sentence contains all the letters in the english alphabet",
   "programming is the process of creating a set of instructions that tell a computer how to perform a task",
@@ -14,14 +55,10 @@ const simpleWords = [
   "practice typing to improve your speed and accuracy focus on consistency rather than raw speed for best results",
 ];
 
-// Random words - no coherent meaning, just common words
-const timeModeSamples = [
-  "look good time day get way people year back think right come work want long well make thing great need should because could here first after much find help use even place where life consider however different become something actually learn system study provide part leave feel time fact point",
-  "say make go world know see take come good person want year give day could most use find tell look need help start ask seem feel try leave call work ask most number new year study way provide different fact point love think fact problem most",
-  "work see make need use find get think time day tell year right way start find person call study provide leave want most first point fact possible problem now come day make good year need find tell know system take want get study provide look",
-  "know let great use keep think problem house part service state help point ask first need come fact say get use make work take different leave school most important tell right call good come plan problem think hand thing year system provide different",
-  "way see day good work use point most important come state learn study provide fact possible problem tell new great right time call make different find use leave ask important number keep hand thing fact state system most different"
-];
+// Generate dynamic time mode samples based on difficulty
+const easyTimeModeSamples = generateSamplesByDifficulty('easy');
+const mediumTimeModeSamples = generateSamplesByDifficulty('medium');
+const hardTimeModeSamples = generateSamplesByDifficulty('hard');
 
 // Quotes with punctuation
 const quoteModeSamples = [
@@ -131,7 +168,7 @@ const TypingTest: React.FC<TypingTestProps> = ({
     
     switch (testMode) {
       case 'time':
-        samples = timeModeSamples;
+        samples = difficulty === 'hard' ? hardTimeModeSamples : difficulty === 'medium' ? mediumTimeModeSamples : easyTimeModeSamples;
         break;
       case 'quote':
         samples = difficulty === 'hard' ? hardModeSamples : quoteModeSamples;

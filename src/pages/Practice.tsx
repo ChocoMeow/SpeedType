@@ -31,7 +31,7 @@ const modeOptions = [
 ];
 
 const Practice = () => {
-  const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
+  const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('easy');
   const [duration, setDuration] = useState(30);
   const [wordCount, setWordCount] = useState(25);
   const [testMode, setTestMode] = useState<TestMode>('time');
