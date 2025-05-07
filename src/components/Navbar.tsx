@@ -24,7 +24,7 @@ const Navbar = () => {
 
   // Get current page title
   // This function is now directly used in App.tsx with PageWrapper component
-  
+
   return (
     <nav className="bg-[#0A0A0A] p-4 text-gray-200 border-b border-[#1A1A1A]">
       <div className="container mx-auto flex justify-between items-center">

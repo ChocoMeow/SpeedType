@@ -6,6 +6,18 @@ import { generate } from "random-words";
 // Define test modes
 type TestMode = 'time' | 'words' | 'quote';
 
+// Define test status
+type TestStatus = 'waiting' | 'typing' | 'finished';
+
+// Track what the user actually typed for each word
+interface WordAttempt {
+  expected: string;
+  typed: string;
+  isCorrect: boolean;
+  timeToType?: number; // Time in ms to type this word
+  keystrokeTimings?: number[]; // Array of time deltas between keystrokes
+}
+
 // Function to generate words with specific difficulty
 function generateWords(wordCount: number, minLength: number, maxLength: number): string[] {
   const result = generate({ exactly: wordCount, minLength, maxLength });
@@ -23,15 +35,15 @@ function generateSamplesByDifficulty(difficulty: 'easy' | 'medium' | 'hard'): st
     switch (difficulty) {
       case 'easy':
         // Easy: shorter words (1-4 characters)
-        words = generateWords(150, 1, 4);
+        words = generateWords(400, 1, 4);
         break;
       case 'medium':
         // Medium: mix of short and medium words (3-8 characters)
-        words = generateWords(150, 1, 8);
+        words = generateWords(400, 1, 8);
         break;
       case 'hard':
         // Hard: longer words (5-14 characters) with some special characters
-        words =generateWords(150, 1, 14);
+        words =generateWords(400, 1, 14);
         break;
     }
     
@@ -39,7 +51,7 @@ function generateSamplesByDifficulty(difficulty: 'easy' | 'medium' | 'hard'): st
     const shuffled = words.sort(() => 0.5 - Math.random());
     
     // Take a subset to create a reasonable paragraph
-    const sampleWords = shuffled.slice(0, 60);
+    const sampleWords = shuffled.slice(0, 400);
     samples.push(sampleWords.join(' '));
   }
   
@@ -87,15 +99,6 @@ interface TypingTestProps {
   onTypingStateChange?: (isTyping: boolean) => void; // Callback to notify parent about typing state
 }
 
-type TestStatus = 'waiting' | 'typing' | 'finished';
-
-// Track what the user actually typed for each word
-interface WordAttempt {
-  expected: string;
-  typed: string;
-  isCorrect: boolean;
-}
-
 const TypingTest: React.FC<TypingTestProps> = ({ 
   difficulty = 'medium', 
   testDuration = 60,
@@ -133,6 +136,14 @@ const TypingTest: React.FC<TypingTestProps> = ({
 
   // Track word attempts including what the user actually typed
   const [wordAttempts, setWordAttempts] = useState<WordAttempt[]>([]);
+
+  // Add a ref for the text display container
+  const textDisplayRef = useRef<HTMLDivElement>(null);
+
+  // Add additional state for detailed metrics
+  const [keystrokeTimings, setKeystrokeTimings] = useState<number[]>([]); // Time between keystrokes
+  const [lastKeystrokeTime, setLastKeystrokeTime] = useState<number | null>(null);
+  const [lastWordTime, setLastWordTime] = useState<number | null>(null);
 
   // Focus handling
   useEffect(() => {
@@ -298,41 +309,15 @@ const TypingTest: React.FC<TypingTestProps> = ({
     };
   }, []);
 
-  // Go back to previous word when backspace is pressed at the beginning of input
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace' && input === '' && currentWordIndex > 0) {
-      // Go back to previous word
-      setCurrentWordIndex(prev => prev - 1);
-      
-      // Restore the previous word attempt as current input
-      const prevAttempt = wordAttempts[currentWordIndex - 1];
-      if (prevAttempt) {
-        setInput(prevAttempt.typed);
-        
-        // Remove the last word attempt since we're going back
-        setWordAttempts(prev => prev.slice(0, prev.length - 1));
-      }
-    }
-    
-    // User is typing, set the typing state to true
-    setIsTyping(true);
-    
-    // Reset the inactivity timer
-    if (inactivityTimerRef.current) {
-      clearTimeout(inactivityTimerRef.current);
-    }
-    
-    // Set a new inactivity timer (2 seconds of no typing will reset the typing state)
-    inactivityTimerRef.current = setTimeout(() => {
-      setIsTyping(false);
-    }, 2000);
-  };
-
   // Handle input changes
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const currentTime = Date.now();
+    
     if (status === 'waiting') {
       setStatus('typing');
-      setStartTime(Date.now());
+      setStartTime(currentTime);
+      setLastKeystrokeTime(currentTime);
+      setLastWordTime(currentTime);
     }
     
     if (status === 'finished') return;
@@ -340,6 +325,18 @@ const TypingTest: React.FC<TypingTestProps> = ({
     const value = e.target.value;
     const prevLength = input.length;
     const currentWord = wordList[currentWordIndex];
+    
+    // Track keystrokes and timing
+    if (lastKeystrokeTime !== null) {
+      const timeDelta = currentTime - lastKeystrokeTime;
+      // Only record reasonable timings (< 5 seconds)
+      if (timeDelta > 0 && timeDelta < 5000) {
+        setKeystrokeTimings(prev => [...prev, timeDelta]);
+      }
+    }
+    
+    // Update last keystroke time
+    setLastKeystrokeTime(currentTime);
     
     // User is typing, set the typing state to true
     setIsTyping(true);
@@ -358,7 +355,7 @@ const TypingTest: React.FC<TypingTestProps> = ({
     if (value.length > prevLength) {
       setTotalTypedChars(prev => prev + 1);
       
-      // Check if the last typed character is correct
+      // Check if the character is correct at this position
       const lastCharIndex = value.length - 1;
       if (lastCharIndex >= 0 && lastCharIndex < currentWord.length) {
         if (value[lastCharIndex] !== currentWord[lastCharIndex]) {
@@ -374,16 +371,24 @@ const TypingTest: React.FC<TypingTestProps> = ({
     
     // Check if this is the last word and the user has typed it completely and correctly
     if (currentWordIndex === wordList.length - 1 && value === currentWord) {
+      // Calculate word timing
+      let wordTime: number | undefined;
+      if (lastWordTime !== null) {
+        wordTime = currentTime - lastWordTime;
+      }
+      
       // Last word completed correctly - end test automatically
-      // Add the final word to attempts
+      // Add the final word to attempts with timing data
       setWordAttempts(prev => [...prev, {
         expected: currentWord,
         typed: value,
-        isCorrect: true
+        isCorrect: true,
+        timeToType: wordTime,
+        keystrokeTimings: keystrokeTimings
       }]);
       
       setStatus('finished');
-      setEndTime(Date.now());
+      setEndTime(currentTime);
       setIsTyping(false);
       return;
     }
@@ -393,12 +398,26 @@ const TypingTest: React.FC<TypingTestProps> = ({
       const typedWord = value.trim();
       const isWordCorrect = typedWord === currentWord;
       
-      // Store the attempt with what was actually typed
+      // Calculate word timing
+      let wordTime: number | undefined;
+      if (lastWordTime !== null) {
+        wordTime = currentTime - lastWordTime;
+      }
+      
+      // Store the attempt with what was actually typed and timing data
       setWordAttempts(prev => [...prev, {
         expected: currentWord,
         typed: typedWord,
-        isCorrect: isWordCorrect
+        isCorrect: isWordCorrect,
+        timeToType: wordTime,
+        keystrokeTimings: [...keystrokeTimings] // Copy current keystroke timings
       }]);
+      
+      // Reset keystroke timings for next word
+      setKeystrokeTimings([]);
+      
+      // Update last word time
+      setLastWordTime(currentTime);
       
       // Move to next word
       setCurrentWordIndex(prev => prev + 1);
@@ -407,10 +426,13 @@ const TypingTest: React.FC<TypingTestProps> = ({
       // Check if test is complete
       if (currentWordIndex === wordList.length - 1) {
         setStatus('finished');
-        setEndTime(Date.now());
+        setEndTime(currentTime);
         setIsTyping(false); // No longer typing when test is finished
       }
     }
+    
+    // Call the auto-scroll function after input changes
+    requestAnimationFrame(scrollTextIntoView);
   };
 
   // Calculate WPM and accuracy when finished
@@ -428,6 +450,7 @@ const TypingTest: React.FC<TypingTestProps> = ({
     if (wordAttempts.length > 0) {
       let correctChars = 0;
       let totalChars = 0;
+      let actualErrors = 0;
       
       // Go through each word attempt - only counting the final state
       wordAttempts.forEach(attempt => {
@@ -437,14 +460,19 @@ const TypingTest: React.FC<TypingTestProps> = ({
         // Add expected characters to total
         totalChars += expectedLength;
         
-        // For each position, check if final character matches expected
+        // Count character differences (errors)
         for (let i = 0; i < Math.min(expectedLength, typedLength); i++) {
           if (attempt.typed[i] === attempt.expected[i]) {
             correctChars++;
+          } else {
+            actualErrors++;
           }
         }
         
-        // Count extra characters as errors
+        // Count extra/missing characters as errors
+        const diff = Math.abs(typedLength - expectedLength);
+        actualErrors += diff;
+        
         if (typedLength > expectedLength) {
           totalChars += (typedLength - expectedLength);
         }
@@ -458,13 +486,20 @@ const TypingTest: React.FC<TypingTestProps> = ({
         for (let i = 0; i < Math.min(input.length, currentWord.length); i++) {
           if (input[i] === currentWord[i]) {
             correctChars++;
+          } else {
+            actualErrors++;
           }
         }
         
         if (input.length > currentWord.length) {
-          totalChars += (input.length - currentWord.length);
+          const diff = input.length - currentWord.length;
+          totalChars += diff;
+          actualErrors += diff;
         }
       }
+      
+      // Update error count based on the actual character errors found
+      setErrorCount(actualErrors);
       
       // Calculate final accuracy percentage
       const calculatedAccuracy = totalChars > 0 
@@ -481,6 +516,11 @@ const TypingTest: React.FC<TypingTestProps> = ({
     }
   }, [status, endTime, startTime, currentWordIndex, totalTypedChars, errorCount, wordAttempts, input, wordList]);
 
+  // Add scrollTextIntoView call after moving to next word
+  useEffect(() => {
+    scrollTextIntoView();
+  }, [currentWordIndex]);
+
   const resetTest = () => {
     const selectedText = getTextSample();
     setWordList(selectedText.split(' '));
@@ -495,6 +535,9 @@ const TypingTest: React.FC<TypingTestProps> = ({
     setErrorCount(0);
     setTotalTypedChars(0);
     setWordAttempts([]);
+    setKeystrokeTimings([]);
+    setLastKeystrokeTime(null);
+    setLastWordTime(null);
     setStatus('waiting');
     setIsTyping(false); // Reset typing state
     if (inputRef.current) {
@@ -667,22 +710,74 @@ const TypingTest: React.FC<TypingTestProps> = ({
     setIsFocused(false);
   };
 
+  // Add function to auto-scroll text as user types
+  const scrollTextIntoView = () => {
+    if (!textDisplayRef.current) return;
+    
+    // Find the current word element
+    const currentWordEl = wordElementsRef.current[currentWordIndex];
+    if (!currentWordEl) return;
+    
+    // Get the positions
+    const containerRect = textDisplayRef.current.getBoundingClientRect();
+    const wordRect = currentWordEl.getBoundingClientRect();
+    
+    // Calculate the top position of the current word relative to the container
+    const relativeTop = wordRect.top - containerRect.top;
+    
+    // If the word is near the bottom of the visible area, scroll it to the middle
+    if (relativeTop > containerRect.height / 2) {
+      textDisplayRef.current.scrollTop += relativeTop - containerRect.height / 3;
+    }
+  };
+
+  // Handle special key events
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && input === '' && currentWordIndex > 0) {
+      // Go back to previous word
+      setCurrentWordIndex(prev => prev - 1);
+      
+      // Restore the previous word attempt as current input
+      const prevAttempt = wordAttempts[currentWordIndex - 1];
+      if (prevAttempt) {
+        setInput(prevAttempt.typed);
+        
+        // Remove the last word attempt since we're going back
+        setWordAttempts(prev => prev.slice(0, prev.length - 1));
+      }
+    }
+    
+    // User is typing, set the typing state to true
+    setIsTyping(true);
+    
+    // Reset the inactivity timer
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+    }
+    
+    // Set a new inactivity timer (2 seconds of no typing will reset the typing state)
+    inactivityTimerRef.current = setTimeout(() => {
+      setIsTyping(false);
+    }, 2000);
+  };
+
   return (
     <div className="w-full mx-auto">
       {status === 'finished' ? (
         <TestResults 
           wpm={wpm}
           accuracy={accuracy}
-          duration={testDuration}
+          duration={Math.round(((endTime || 0) - (startTime || 0)) / 1000)}
           errorCount={errorCount}
           totalTypedChars={totalTypedChars}
-          onRestart={resetTest}
           testMode={testMode}
+          onRestart={resetTest}
+          wordAttempts={wordAttempts}
         />
       ) : (
         <>
         {/* Stats display */}
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center mb-4">
             {renderProgressIndicator()}
             
             <div className="text-sm px-3 py-1 bg-[#111111] rounded-full text-gray-400">
@@ -696,18 +791,25 @@ const TypingTest: React.FC<TypingTestProps> = ({
             onClick={() => inputRef.current?.focus()}
           >
             {/* The actual typing area that gets blurred */}
-            <div className={`h-72 overflow-auto text-2xl rounded-lg shadow-inner font-mono text-center flex items-center justify-center transition-all duration-300 ease-in-out ${!isFocused ? 'blur-sm' : 'blur-0'} select-none`}>
-              <div className="w-full leading-relaxed cursor-default">
+            <div className={`py-2 h-40 overflow-hidden text-2xl rounded-lg shadow-inner font-mono text-center flex items-center justify-center transition-all duration-300 ease-in-out ${!isFocused ? 'blur-sm' : 'blur-0'} select-none relative`}>
+              <div 
+                ref={textDisplayRef}
+                className="w-full max-h-full overflow-hidden leading-relaxed cursor-default"
+              >
                 <div className="leading-loose tracking-wide text-justify">
                   {renderWords()}
                 </div>
               </div>
+              
+              {/* Gradient overlays to indicate more text above/below */}
+              <div className="absolute top-0 left-0 right-0 h-6 bg-gradient-to-b from-[#0A0A0A] to-transparent pointer-events-none"></div>
+              <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-[#0A0A0A] to-transparent pointer-events-none"></div>
             </div>
 
             {/* Overlay that appears when not focused (outside the blurred area) */}
             <div className={`absolute inset-0 flex items-center justify-center z-10 pointer-events-none transition-opacity duration-300 ease-in-out ${!isFocused ? 'opacity-100' : 'opacity-0'}`}>
-              <span className={`text-white text-xl font-medium px-6 py-3 bg-[#0A0A0A]/90 rounded-lg border border-primary/30 pointer-events-auto shadow-lg transform transition-all duration-300 ease-in-out ${!isFocused ? 'translate-y-0 scale-100' : 'translate-y-4 scale-95 opacity-0'}`}>
-                Click here to continue
+              <span className={`text-white text-xl font-medium px-6 pointer-events-auto shadow-lg transform transition-all duration-300 ease-in-out ${!isFocused ? 'translate-y-0 scale-100' : 'translate-y-4 scale-95 opacity-0'}`}>
+                click here to continue
               </span>
             </div>
           </div>
