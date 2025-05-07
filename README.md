@@ -6,8 +6,7 @@ SpeedType features a clean, minimalist interface designed to help users focus on
 This project was inspired by [MonkeyType](http://monkeytype.com) and is built with React, TypeScript, and Vite.
 
 ## 📸 Screenshots
-<img width="1920" alt="Thumbnail 2" src="https://github.com/user-attachments/assets/79689f34-3005-44f7-81b1-8603c819fe00" />
-
+<img width="1920" alt="Thumbnail 2" src="https://github.com/user-attachments/assets/711279e9-dc1c-49f1-9491-7b96bb1e9185" />
 
 ## 📋 Table of Contents
 
